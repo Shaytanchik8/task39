@@ -1,0 +1,50 @@
+trigger:
+- master
+
+variables:
+  dockerRegistryServiceConnection: '94fe1ad9-6c4c-4fbf-ac19-d4d9cb7d5b19'
+  containerRegistry: 'task39.azurecr.io'
+  imageRepository: 'nginx'
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  tag: '$(Build.BuildId)'
+
+stages:
+- stage: Build
+  displayName: Build and publish stage
+  jobs:
+  - job: Build
+    displayName: Build job
+    pool:
+      name: 'default'
+    steps:
+    - task: AzureAppConfiguration@7
+      inputs:
+        azureSubscription: 'task39-acr'
+        AppConfigurationEndpoint: 'https://task39.azconfig.io'
+        KeyFilter: 'conf'
+        Label: 'conf'
+    - script: echo "$(conf)" > default.conf 
+    - task: DockerInstaller@0
+      inputs:
+        dockerVersion: '17.09.0-ce'
+
+    - task: Docker@2
+      displayName: Build and publish image to Azure Container Registry
+      inputs:
+        command: buildAndPush
+        containerRegistry: $(dockerRegistryServiceConnection)
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        tags: |
+          $(tag)
+    - script: docker rmi task39.azurecr.io/nginx:$(Build.BuildId)
+    - task: AzureContainerApps@1
+      inputs:
+        azureSubscription: 'task39-acr'
+        acrName: 'task39'
+        acrUsername: 'task39'
+        acrPassword: '5CtqacArO4Umqd7cAb5Q2E3TfG4q/VLk0I6xVve6PN+ACRB1TWgY'
+        imageToDeploy: 'task39.azurecr.io/nginx:$(Build.BuildId)'
+        containerAppName: 'nginx'
+        resourceGroup: 'group2'
+        targetPort: '80'
